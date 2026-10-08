@@ -1,14 +1,28 @@
+from dotenv import load_dotenv
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
+from datetime import datetime
+import os
+from motor.motor_asyncio import AsyncIOMotorClient
 from langchain_community.embeddings import OllamaEmbeddings
 from langchain_community.llms import Ollama
 from langchain_chroma import Chroma
+from dotenv import load_dotenv  # <--- Make sure this is imported
+from motor.motor_asyncio import AsyncIOMotorClient
+
+load_dotenv()
 
 router = APIRouter(prefix="/api", tags=["Chat"])
 
 CHROMA_PERSIST_DIR = "./chroma_db"
 COLLECTION_NAME = "mota_scheme_guidelines"
+
+# Initialize MongoDB Client & Collection asynchronously
+MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
+mongo_client = AsyncIOMotorClient(MONGO_URI)
+db = mongo_client.jago_chatbot
+chat_collection = db.conversations
 
 # Initialize standard local Ollama embeddings and LLM
 embeddings = OllamaEmbeddings(model="nomic-embed-text")
@@ -28,6 +42,7 @@ except Exception as e:
 class ChatRequest(BaseModel):
     message: str
     language: Optional[str] = "English"  # Defaults strictly to English unless stated otherwise
+    session_id: Optional[str] = "default_user"
 
 @router.post("/chat")
 async def chat_with_jago(request: ChatRequest):
@@ -72,6 +87,18 @@ Answer:"""
 
         # 4. Generate response
         response = llm.invoke(prompt)
+        timestamp_str = datetime.utcnow().isoformat()
+
+        # 5. Save conversation record to MongoDB asynchronously
+        chat_record = {
+            "session_id": request.session_id,
+            "user_message": request.message,
+            "bot_reply": response,
+            "language_used": requested_lang,
+            "sources_found": len(docs),
+            "timestamp": timestamp_str
+        }
+        await chat_collection.insert_one(chat_record)
         
         return {
             "status": "success",

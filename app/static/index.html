@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jago Bot | MoTA Assistant</title>
+    <!-- Tailwind CSS CDN for modern, clean styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .chat-container::-webkit-scrollbar {
+            width: 6px;
+        }
+        .chat-container::-webkit-scrollbar-thumb {
+            background-color: #cbd5e1;
+            border-radius: 4px;
+        }
+        @keyframes pulse-slow {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+        .thinking-dots span {
+            animation: pulse-slow 1.4s infinite ease-in-out both;
+        }
+        .thinking-dots span:nth-child(2) { animation-delay: 0.2s; }
+        .thinking-dots span:nth-child(3) { animation-delay: 0.4s; }
+        .listening {
+            color: #ef4444 !important;
+            animation: pulse 1s infinite;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 h-screen flex flex-col justify-between">
+
+    <!-- Header -->
+    <header class="bg-white border-b border-slate-200 py-3 px-6 flex items-center justify-between shadow-sm">
+        <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 rounded-full bg-indigo-600 flex items-center text-white justify-center font-bold text-lg">
+                JB
+            </div>
+            <div>
+                <h1 class="font-semibold text-slate-800 text-base">Jago Bot</h1>
+                <p class="text-xs text-emerald-600 flex items-center">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500 inline-block mr-1.5"></span> MoTA Assistant Online
+                </p>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Chat Window -->
+    <main class="flex-1 max-w-4xl w-full mx-auto p-4 flex flex-col overflow-hidden">
+        <div id="chatMessages" class="chat-container flex-1 overflow-y-auto pr-2 space-y-4 mb-4">
+            <!-- Initial Greeting Message -->
+            <div class="flex items-start space-x-3">
+                <div class="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-semibold text-sm flex-shrink-0">
+                    JB
+                </div>
+                <div class="bg-white border border-slate-200 rounded-2xl rounded-tl-none p-4 max-w-xl shadow-sm text-slate-700 text-sm leading-relaxed">
+                    Namaste! I am Jago Bot. Ask me anything about Ministry of Tribal Affairs scholarships, EMRS, or ST welfare schemes.
+                    <span class="block text-[10px] text-slate-400 mt-1">Just now</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Input Section -->
+        <div class="bg-white border border-slate-200 rounded-full shadow-md px-4 py-2 flex items-center space-x-3">
+            <button id="micBtn" type="button" class="text-slate-400 hover:text-indigo-600 transition p-2 focus:outline-none" title="Voice Search">
+                <i class="fa-solid fa-microphone text-lg"></i>
+            </button>
+            <input id="userInput" type="text" placeholder="Ask a question or search schemes..." class="flex-1 border-none focus:outline-none text-slate-700 text-sm bg-transparent">
+            <button id="sendBtn" type="button" class="w-10 h-10 bg-slate-900 hover:bg-indigo-600 transition text-white rounded-full flex items-center justify-center shadow focus:outline-none">
+                <i class="fa-solid fa-paper-plane text-sm"></i>
+            </button>
+        </div>
+    </main>
+
+    <!-- Client Script -->
+    <script>
+        const chatMessages = document.getElementById('chatMessages');
+        const userInput = document.getElementById('userInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const micBtn = document.getElementById('micBtn');
+
+        // Auto-scroll to the bottom of the chat container
+        function scrollToBottom() {
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        // Append a message to the chat view
+        function appendMessage(sender, text) {
+            const isUser = sender === 'user';
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `flex items-start space-x-3 ${isUser ? 'justify-end' : ''}`;
+
+            if (!isUser) {
+                messageDiv.innerHTML = `
+                    <div class="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-semibold text-sm flex-shrink-0">JB</div>
+                    <div class="bg-white border border-slate-200 rounded-2xl rounded-tl-none p-4 max-w-xl shadow-sm text-slate-700 text-sm leading-relaxed">
+                        ${text}
+                        <span class="block text-[10px] text-slate-400 mt-1">Just now</span>
+                    </div>
+                `;
+            } else {
+                messageDiv.innerHTML = `
+                    <div class="bg-slate-900 text-white rounded-2xl rounded-tr-none p-4 max-w-xl shadow-sm text-sm leading-relaxed">
+                        ${text}
+                        <span class="block text-[10px] text-slate-300 mt-1 text-right">Just now</span>
+                    </div>
+                `;
+            }
+
+            chatMessages.appendChild(messageDiv);
+            scrollToBottom();
+        }
+
+        // Show thinking dots while waiting for the backend response
+        function showThinkingIndicator() {
+            const thinkingDiv = document.createElement('div');
+            thinkingDiv.id = 'thinkingIndicator';
+            thinkingDiv.className = 'flex items-start space-x-3';
+            thinkingDiv.innerHTML = `
+                <div class="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-semibold text-sm flex-shrink-0">JB</div>
+                <div class="bg-white border border-slate-200 rounded-2xl rounded-tl-none p-4 shadow-sm text-slate-500 text-sm thinking-dots flex space-x-1.5 items-center">
+                    <span class="w-2 h-2 bg-slate-400 rounded-full inline-block"></span>
+                    <span class="w-2 h-2 bg-slate-400 rounded-full inline-block"></span>
+                    <span class="w-2 h-2 bg-slate-400 rounded-full inline-block"></span>
+                </div>
+            `;
+            chatMessages.appendChild(thinkingDiv);
+            scrollToBottom();
+        }
+
+        // Remove the thinking indicator dots
+        function hideThinkingIndicator() {
+            const indicator = document.getElementById('thinkingIndicator');
+            if (indicator) indicator.remove();
+        }
+
+        // Handle sending message to FastAPI backend
+        async function handleSendMessage() {
+            const queryText = userInput.value.trim();
+            if (!queryText) return;
+
+            userInput.value = '';
+            appendMessage('user', queryText);
+            showThinkingIndicator();
+
+            try {
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    // MUST be 'message' to match backend's ChatRequest model
+                    body: JSON.stringify({ message: queryText })
+                });
+
+                hideThinkingIndicator();
+
+                if (!response.ok) {
+                    throw new Error(`Server error: ${response.status}`);
+                }
+
+                const data = await response.json();
+                // MUST look for 'reply' to match backend's return dictionary
+                const botReply = data.reply || "I received your message successfully!";
+                appendMessage('bot', botReply);
+
+            } catch (error) {
+                hideThinkingIndicator();
+                console.error("Chat submission error:", error);
+                appendMessage('bot', "⚠️ Sorry, I encountered an issue connecting to the server.");
+            }
+        }
+
+        // Event listeners for sending
+        sendBtn.addEventListener('click', handleSendMessage);
+        userInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                handleSendMessage();
+            }
+        });
+
+        // Speech-to-Text (Microphone integration)
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (SpeechRecognition) {
+            const recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            recognition.lang = 'en-IN';
+
+            micBtn.addEventListener('click', () => {
+                micBtn.classList.add('listening');
+                try {
+                    recognition.start();
+                } catch (e) {
+                    if (e.name === 'InvalidStateError') {
+                        recognition.stop();
+                    } else {
+                        console.error(e);
+                    }
+                    micBtn.classList.remove('listening');
+                }
+            });
+
+            recognition.onresult = (event) => {
+                const speechToText = event.results[0][0].transcript;
+                userInput.value = speechToText;
+                micBtn.classList.remove('listening');
+                handleSendMessage();
+            };
+
+            recognition.onerror = () => {
+                micBtn.classList.remove('listening');
+            };
+
+            recognition.onend = () => {
+                micBtn.classList.remove('listening');
+            };
+        } else {
+            micBtn.style.display = 'none'; // Hide mic if browser doesn't support Speech API
+        }
+    </script>
+</body>
+</html>

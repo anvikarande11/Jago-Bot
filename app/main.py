@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from app.config import settings
 from app.database import engine, Base
 from app.routers import chat
@@ -14,7 +15,7 @@ async def lifespan(app: FastAPI):
     print("✅ SQLite Database tables created successfully!")
     yield
 
-# Single, unified FastAPI app instance with all configurations and lifespan
+# 1. CREATE THE FASTAPI APP INSTANCE FIRST
 app = FastAPI(
     title=settings.PROJECT_NAME,
     description="Backend API engine for the Unified MoTA Scholarship Portal and JAGO Chatbot.",
@@ -22,7 +23,7 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Configure CORS for frontend access
+# 2. Configure CORS for frontend access
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -31,13 +32,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include Routers
+# 3. Include Routers
 app.include_router(chat.router)
 
-@app.get("/")
-async def root():
+@app.get("/health")
+async def health_check():
     return {
         "status": "online",
         "service": settings.PROJECT_NAME,
         "docs_url": "/docs"
     }
+
+# 4. MOUNT STATIC FILES LAST (so app is fully defined)
+app.mount("/", StaticFiles(directory="app/static", html=True), name="static")
